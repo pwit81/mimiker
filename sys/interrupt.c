@@ -73,6 +73,8 @@ void intr_chain_run_handlers(intr_chain_t *ic) {
   TAILQ_FOREACH (ih, &ic->ic_handlers, ih_list) {
     assert(ih->ih_filter != NULL);
     status = ih->ih_filter(ih->ih_argument);
+    if (status)
+      klog("%s: handled %s IRQ", ic->ic_name, ih->ih_name);
     if (status == IF_FILTERED)
       return;
     if (status == IF_DELEGATE) {

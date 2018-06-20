@@ -204,6 +204,8 @@ static intr_filter_t gt_pci_intr(void *data) {
       irq = (irq & OCW3_POLL_PENDING) ? (OCW3_POLL_IRQ(irq) + 8) : 2;
     }
 
+    klog("gtpci: pending IRQ%d", irq);
+
     /* Irq 2 is used for PIC chaining, ignore it. */
     if (irq != 2)
       intr_chain_run_handlers(&gtpci->intr_chain[irq]);

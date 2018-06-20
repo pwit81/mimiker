@@ -30,5 +30,6 @@ int main(void) {
     return 1;
   }
 
+  klog("done!");
   return 0;
 }

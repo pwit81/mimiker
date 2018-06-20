@@ -91,6 +91,8 @@ void klog_append(klog_origin_t origin, const char *file, unsigned line,
       }
     }
 
+    klog_entry_t *prev_entry = entry;
+
     entry = &klog.array[klog.last];
 
     *entry = (klog_entry_t){.kl_timestamp = now,
@@ -105,6 +107,10 @@ void klog_append(klog_origin_t origin, const char *file, unsigned line,
     klog.last = next(klog.last);
     if (klog.first == klog.last)
       klog.first = next(klog.first);
+
+    if (prev_entry) {
+      assert(timeval_cmp(&prev_entry->kl_timestamp, &entry->kl_timestamp, <=));
+    }
   }
 
   if (klog.verbose && !intr_disabled())

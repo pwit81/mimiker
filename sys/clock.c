@@ -15,7 +15,13 @@ systime_t getsystime(void) {
 }
 
 static void clock_cb(timer_t *tm, void *arg) {
+  systime_t prev = now;
+  timeval_t cpu = getcputime();
   now = bintime_mul(getbintime(), SYSTIME_FREQ).sec;
+  klog("cpu: %d.%06d, now: %d, prev: %d", cpu.tv_sec, cpu.tv_usec, now, prev);
+  assert(now >= prev);
+  int diff = now - tv2st(cpu);
+  assert(abs(diff) <= 1);
   callout_process(now);
   sched_clock();
 }
