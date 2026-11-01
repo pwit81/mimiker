@@ -92,6 +92,8 @@ static int sys_fsync(proc_t *, fsync_args_t *, register_t *);
 static int sys_kqueue1(proc_t *, kqueue1_args_t *, register_t *);
 static int sys_kevent(proc_t *, kevent_args_t *, register_t *);
 static int sys_sigtimedwait(proc_t *, sigtimedwait_args_t *, register_t *);
+static int sys_clock_settime(proc_t *, clock_settime_args_t *, register_t *);
+static int sys_pathconf(proc_t *, pathconf_args_t *, register_t *);
 
 struct sysent sysent[] = {
   [SYS_syscall] = { .name = "syscall", .nargs = 1, .call = (syscall_t *)sys_syscall },
@@ -181,5 +183,7 @@ struct sysent sysent[] = {
   [SYS_kqueue1] = { .name = "kqueue1", .nargs = 1, .call = (syscall_t *)sys_kqueue1 },
   [SYS_kevent] = { .name = "kevent", .nargs = 6, .call = (syscall_t *)sys_kevent },
   [SYS_sigtimedwait] = { .name = "sigtimedwait", .nargs = 3, .call = (syscall_t *)sys_sigtimedwait },
+  [SYS_clock_settime] = { .name = "clock_settime", .nargs = 2, .call = (syscall_t *)sys_clock_settime },
+  [SYS_pathconf] = { .name = "pathconf", .nargs = 2, .call = (syscall_t *)sys_pathconf },
 };
 

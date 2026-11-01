@@ -433,15 +433,15 @@ int pgrp_enter(proc_t *p, pid_t target, pgid_t pgid) {
 }
 
 /* Process functions */
-proc_t *proc_self(void) {
+__no_profile proc_t *proc_self(void) {
   return thread_self()->td_proc;
 }
 
-void proc_lock(proc_t *p) {
+__no_profile void proc_lock(proc_t *p) {
   mtx_lock(&p->p_lock);
 }
 
-void proc_unlock(proc_t *p) {
+__no_profile void proc_unlock(proc_t *p) {
   mtx_unlock(&p->p_lock);
 }
 
@@ -531,7 +531,7 @@ static void proc_reap(proc_t *p) {
   TAILQ_REMOVE(CHILDREN(p->p_parent), p, p_child);
   TAILQ_REMOVE(&zombie_list, p, p_zombie);
   kfree(M_STR, p->p_elfpath);
-  kfree(M_TEMP, p->p_args);
+  kfree(M_STR, p->p_args);
   TAILQ_REMOVE(PROC_HASH_CHAIN(p->p_pid), p, p_hash);
   pool_free(P_PROC, p);
 }

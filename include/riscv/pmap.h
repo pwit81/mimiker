@@ -46,38 +46,68 @@ typedef struct pmap_md {
  * Page directory.
  */
 
-static inline bool pde_valid_p(pde_t *pdep) {
+static __no_profile inline bool pde_valid_p(pde_t *pdep) {
   return pdep && VALID_PDE_P(*pdep);
 }
 
 void *phys_to_dmap(paddr_t addr);
 
-static inline pde_t *pde_ptr(paddr_t pd_pa, int lvl, vaddr_t va) {
-  pde_t *pde = phys_to_dmap(pd_pa);
-  if (lvl == 0)
-    return pde + L0_INDEX(va);
-#if __riscv_xlen == 32
-  return pde + L1_INDEX(va);
-#else
-  if (lvl == 1)
-    return pde + L1_INDEX(va);
-  return pde + L2_INDEX(va);
+static __no_profile inline size_t pde_index(int lvl, vaddr_t va) {
+  switch (lvl) {
+    case 0:
+      return L0_INDEX(va);
+    case 1:
+      return L1_INDEX(va);
+#if __riscv_xlen == 64
+    case 2:
+      return L2_INDEX(va);
 #endif
+    default:
+      panic("Invalid level: %d", lvl);
+  }
+}
+
+static __no_profile inline bool pde_valid_index(int lvl, size_t index) {
+  switch (lvl) {
+    case 0:
+    case 1:
+#if __riscv_xlen == 64
+    case 2:
+#endif
+      return index < Ln_ENTRIES;
+    default:
+      panic("Invalid level: %d", lvl);
+  }
+}
+
+static __no_profile inline size_t pde_size(int lvl) {
+  switch (lvl) {
+    case 0:
+      return L0_SIZE;
+    case 1:
+      return L1_SIZE;
+#if __riscv_xlen == 64
+    case 2:
+      return L2_SIZE;
+#endif
+    default:
+      panic("Invalid level: %d", lvl);
+  }
 }
 
 /*
  * Page table.
  */
 
-static inline paddr_t pte_frame(pte_t pte) {
+static __no_profile inline paddr_t pte_frame(pte_t pte) {
   return PTE_TO_PA(pte);
 }
 
-static inline bool pte_valid_p(pte_t *ptep) {
+static __no_profile inline bool pte_valid_p(pte_t *ptep) {
   return ptep && VALID_PTE_P(*ptep);
 }
 
-static inline bool pte_access(pte_t pte, vm_prot_t prot) {
+static __no_profile inline bool pte_access(pte_t pte, vm_prot_t prot) {
   switch (prot) {
     case VM_PROT_READ:
       return pte & PTE_SW_READ;
@@ -94,7 +124,7 @@ static inline bool pte_access(pte_t pte, vm_prot_t prot) {
  * Physical map management.
  */
 
-static inline void pmap_md_delete(pmap_t *pmap) {
+static __no_profile inline void pmap_md_delete(pmap_t *pmap) {
 }
 
 #endif /* !_RISCV_PMAP_H_ */

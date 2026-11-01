@@ -45,40 +45,41 @@ static MTX_DEFINE(pv_list_lock, 0);
  * Helper functions.
  */
 
-static inline pde_t page_offset(vaddr_t addr) {
+static __no_profile inline pde_t page_offset(vaddr_t addr) {
   return addr & (PAGESIZE - 1);
 }
 
-static bool kern_addr_p(vaddr_t addr) {
+static __no_profile bool kern_addr_p(vaddr_t addr) {
   return addr >= KERNEL_SPACE_BEGIN && addr < KERNEL_SPACE_END;
 }
 
-vaddr_t pmap_start(pmap_t *pmap) {
+vaddr_t __no_profile pmap_start(pmap_t *pmap) {
   return pmap->asid ? USER_SPACE_BEGIN : KERNEL_SPACE_BEGIN;
 }
 
-vaddr_t pmap_end(pmap_t *pmap) {
+vaddr_t __no_profile pmap_end(pmap_t *pmap) {
   return pmap->asid ? USER_SPACE_END : KERNEL_SPACE_END;
 }
 
-static bool pmap_address_p(pmap_t *pmap, vaddr_t va) {
+static __no_profile bool pmap_address_p(pmap_t *pmap, vaddr_t va) {
   return va >= pmap_start(pmap) && va < pmap_end(pmap);
 }
 
-static bool pmap_contains_p(pmap_t *pmap, vaddr_t start, vaddr_t end) {
+static __no_profile bool pmap_contains_p(pmap_t *pmap, vaddr_t start,
+                                         vaddr_t end) {
   assert(start < end);
   return start >= pmap_start(pmap) && end <= pmap_end(pmap);
 }
 
-inline pmap_t *pmap_kernel(void) {
+__no_profile inline pmap_t *pmap_kernel(void) {
   return &kernel_pmap;
 }
 
-inline pmap_t *pmap_user(void) {
+__no_profile inline pmap_t *pmap_user(void) {
   return PCPU_GET(curpmap);
 }
 
-static void *pg_dmap_addr(vm_page_t *pg) {
+static __no_profile void *pg_dmap_addr(vm_page_t *pg) {
   return phys_to_dmap(pg->paddr);
 }
 
@@ -88,11 +89,11 @@ static vm_page_t *pmap_pagealloc(void) {
   return pg;
 }
 
-void pmap_zero_page(vm_page_t *pg) {
+void __no_profile pmap_zero_page(vm_page_t *pg) {
   memset((void *)pg_dmap_addr(pg), 0, PAGESIZE);
 }
 
-void pmap_copy_page(vm_page_t *src, vm_page_t *dst) {
+void __no_profile pmap_copy_page(vm_page_t *src, vm_page_t *dst) {
   memcpy((void *)pg_dmap_addr(dst), (void *)pg_dmap_addr(src), PAGESIZE);
 }
 
@@ -165,7 +166,7 @@ paddr_t pde_alloc(pmap_t *pmap) {
   return pg->paddr;
 }
 
-static pte_t *pmap_lookup_pte(pmap_t *pmap, vaddr_t va) {
+static __no_profile pte_t *pmap_lookup_pte(pmap_t *pmap, vaddr_t va) {
   pde_t *pdep = pde_ptr(pmap->pde, 0, va);
 
   for (int lvl = 1; lvl < PAGE_TABLE_DEPTH; lvl++) {
@@ -314,6 +315,35 @@ bool pmap_extract(pmap_t *pmap, vaddr_t va, paddr_t *pap) {
   return pmap_extract_nolock(pmap, va, pap);
 }
 
+static inline size_t next_vaddr(int lvl) {
+  if (lvl + 1 < PAGE_TABLE_DEPTH)
+    return pde_size(lvl + 1);
+  return PAGESIZE;
+}
+
+static void pmap_protect_walk(int lvl, paddr_t pd_pa, vaddr_t va, vaddr_t end,
+                              vm_prot_t prot) {
+
+  for (size_t pde_i = pde_index(lvl, va);
+       pde_valid_index(lvl, pde_i) && va < end;
+       pde_i++, va += next_vaddr(lvl)) {
+
+    pde_t *pdep = pde_ptr_idx(pd_pa, pde_i);
+    if (!pde_valid_p(pdep))
+      continue;
+
+    paddr_t pa = pte_frame((pte_t)*pdep);
+
+    if (lvl + 1 == PAGE_TABLE_DEPTH) {
+      pte_t *ptep = (pte_t *)pdep;
+      pte_t pte = pte_protect(*ptep, prot);
+      *ptep = pte;
+    } else {
+      pmap_protect_walk(lvl + 1, pa, va, end, prot);
+    }
+  }
+}
+
 void pmap_protect(pmap_t *pmap, vaddr_t start, vaddr_t end, vm_prot_t prot) {
   assert(pmap != pmap_kernel());
   assert(page_aligned_p(start) && page_aligned_p(end));
@@ -323,13 +353,8 @@ void pmap_protect(pmap_t *pmap, vaddr_t start, vaddr_t end, vm_prot_t prot) {
        end);
 
   WITH_MTX_LOCK (&pmap->mtx) {
-    for (vaddr_t va = start; va < end; va += PAGESIZE) {
-      pte_t *ptep = pmap_lookup_pte(pmap, va);
-      if (!pte_valid_p(ptep))
-        continue;
-      pte_t pte = pte_protect(*ptep, prot);
-      pmap_write_pte(pmap, ptep, pte, va);
-    }
+    pmap_protect_walk(0, pmap->pde, start, end, prot);
+    tlb_invalidate_asid(pmap->asid);
   }
 }
 
@@ -456,9 +481,6 @@ int pmap_fault_handler(ctx_t *ctx, vaddr_t vaddr, vm_prot_t access) {
 
   if (!(error = pmap_emulate_bits(pmap, vaddr, access)))
     return 0;
-
-  if (error == EACCES)
-    goto fault;
 
   vm_map_t *vmap = vm_map_user();
 

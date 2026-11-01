@@ -29,6 +29,7 @@
 #include <sys/lockdep.h>
 #include <sys/kcsan.h>
 #include <sys/kgprof.h>
+#include <sys/kftrace.h>
 
 /* This function mounts some initial filesystems. Normally this would be done by
    userspace init program. */
@@ -37,7 +38,9 @@ static void mount_fs(void) {
   do_mount(p, "initrd", "/");
   do_mount(p, "devfs", "/dev");
   do_mount(p, "tmpfs", "/tmp");
+  do_mount(p, "tmpfs", "/root");
   do_fchmodat(p, AT_FDCWD, "/tmp", ACCESSPERMS | S_ISTXT, 0);
+  do_fchmodat(p, AT_FDCWD, "/root", S_IRWXU, 0);
 }
 
 static __noreturn void start_init(__unused void *arg) {
@@ -67,9 +70,12 @@ static __noreturn void start_init(__unused void *arg) {
   assert(_stdout == 1);
   assert(_stderr == 2);
 
-  char *test = kenv_get("test");
-  if (test)
+  char *test;
+  if ((test = kenv_get("ktest")))
     ktest_main(test);
+
+  if ((test = kenv_get("utest")))
+    utest_main(test);
 
   char *init = kenv_get("init");
   if (init == NULL)
@@ -117,6 +123,7 @@ __noreturn void kernel_init(void) {
   init_clock();
 
   init_kgprof();
+  init_kftrace();
 
   klog("Kernel initialized!");
 

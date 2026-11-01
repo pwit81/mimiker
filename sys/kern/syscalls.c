@@ -185,11 +185,14 @@ static int sys_munmap(proc_t *p, munmap_args_t *args, register_t *res) {
   return do_munmap((vaddr_t)SCARG(args, addr), SCARG(args, len));
 }
 
-/* TODO: implement it !!! */
 static int sys_mprotect(proc_t *p, mprotect_args_t *args, register_t *res) {
-  klog("mprotect(%p, %u, %u)", SCARG(args, addr), SCARG(args, len),
-       SCARG(args, prot));
-  return ENOTSUP;
+  vaddr_t va = (vaddr_t)SCARG(args, addr);
+  size_t length = SCARG(args, len);
+  vm_prot_t prot = SCARG(args, prot);
+
+  klog("mprotect(%p, %u, %u)", va, length, prot);
+
+  return do_mprotect(va, length, prot);
 }
 
 static int sys_openat(proc_t *p, openat_args_t *args, register_t *res) {
@@ -1330,5 +1333,54 @@ end:
 
 static int sys_sigtimedwait(proc_t *p, sigtimedwait_args_t *args,
                             register_t *res) {
+  const sigset_t *u_set = SCARG(args, set);
+  siginfo_t *u_info = SCARG(args, info);
+  const timespec_t *u_timeout = SCARG(args, timeout);
+  sigset_t set;
+  ksiginfo_t ksi;
+  timespec_t timeout = {};
+  int error;
+
+  if (u_timeout) {
+    error = copyin_s(u_timeout, timeout);
+    if (error)
+      return error;
+  }
+
+  if ((error = copyin_s(u_set, set)))
+    return error;
+
+  if ((error = do_sigtimedwait(p, set, &ksi, u_timeout ? &timeout : NULL)))
+    return error;
+
+  if (u_info)
+    error = copyout_s(ksi.ksi_info, u_info);
+
+  *res = ksi.ksi_info.si_signo;
+
+  return error;
+}
+
+static int sys_clock_settime(proc_t *p, clock_settime_args_t *args,
+                             register_t *res) {
   return ENOTSUP;
+}
+
+static int sys_pathconf(proc_t *p, pathconf_args_t *args, register_t *res) {
+  int error;
+  int name = SCARG(args, name);
+  const char *u_path = SCARG(args, path);
+
+  char *path = kmalloc(M_TEMP, PATH_MAX, 0);
+
+  if ((error = copyinstr(u_path, path, PATH_MAX, NULL)))
+    goto end;
+
+  klog("pathconf(\"%s\", %d)", path, name);
+
+  error = do_pathconf(p, path, name, res);
+
+end:
+  kfree(M_TEMP, path);
+  return error;
 }

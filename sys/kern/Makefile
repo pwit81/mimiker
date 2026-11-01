@@ -31,7 +31,6 @@ SOURCES = \
 	kenv.c \
 	klog.c \
 	kmem.c \
-	ktest.c \
 	main.c \
 	malloc.c \
 	mutex.c \
@@ -63,8 +62,7 @@ SOURCES = \
 	vfs_syscalls.c \
 	vfs_vnode.c \
 	vm_map.c \
-	vm_object.c \
-	vm_pager.c \
+	vm_amap.c \
 	vm_physmem.c \
 	vmem.c
 
@@ -75,14 +73,15 @@ SOURCES-KASAN = \
 SOURCES-LOCKDEP = \
 	lockdep.c
 
+SOURCES-KFTRACE = \
+	kftrace.c
+
 SOURCES-KGPROF = \
 	kgprof.c \
 	mcount.c
 
 SOURCES-KCSAN = \
 	kcsan.c
-
-FORMAT-EXCLUDE = sysent.h
 
 include $(TOPDIR)/build/build.kern.mk
 
@@ -94,5 +93,7 @@ sysent.h $(SYSCALL_H) $(SYSCALLARGS_H): syscalls.conf syscalls.master
 	$(TOPDIR)/sys/script/makesyscalls.sh $^
 
 kasan.o : CFLAGS_KASAN =
-mcount.o : CFLAGS_KGPROF =
+mcount.o : CFLAGS_KFI =
 kcsan.o : CFLAGS_KCSAN =
+kftrace.o : CFLAGS_KFI =
+timer.o : CPPFLAGS += -DUNIXTIME_NOW=$(shell date +%s)
